@@ -1,0 +1,124 @@
+{
+  "url": {
+    "name": "Broker Url",
+    "name_zh": "服务器地址",
+    "description": "MQTT broker Url",
+    "description_zh": "MQTT 服务器地址",
+    "attribute": "required",
+    "type": "string",
+    "default": "mqtt-quic://39.107.250.212:14567",
+    "valid": {
+      "length": 255
+    }
+  },
+  "qos": {
+    "name": "QoS Level",
+    "name_zh": "QoS 等级",
+    "description": "MQTT QoS level for message delivery",
+    "description_zh": "MQTT 消息传输使用的服务质量等级",
+    "type": "map",
+    "attribute": "optional",
+    "default": 0,
+    "valid": {
+      "map": [
+        {
+          "key": "QoS 0",
+          "value": 0
+        },
+        {
+          "key": "QoS 1",
+          "value": 1
+        },
+        {
+          "key": "QoS 2",
+          "value": 2
+        }
+      ]
+    }
+  },
+  "username": {
+    "name": "Username",
+    "name_zh": "用户名",
+    "description": "MQTT user name",
+    "description_zh": "MQTT 用户名",
+    "attribute": "optional",
+    "type": "string",
+    "default": "",
+    "valid": {
+      "length": 255
+    }
+  },
+  "password": {
+    "name": "Password",
+    "name_zh": "密码",
+    "description": "MQTT user password",
+    "description_zh": "MQTT 用户密码",
+    "attribute": "optional",
+    "type": "string",
+    "default": "",
+    "valid": {
+      "length": 255
+    }
+  },
+  "deviceid": {
+    "name": "Device Id",
+    "name_zh": "设备ID",
+    "description": "Device Id",
+    "description_zh": "设备ID",
+    "attribute": "required",
+    "type": "string",
+    "default": "",
+    "valid": {
+      "length": 255
+    }
+  },
+  "userid": {
+    "name": "User Id",
+    "name_zh": "用户ID",
+    "description": "User Id",
+    "description_zh": "用户ID",
+    "attribute": "required",
+    "type": "string",
+    "default": "",
+    "valid": {
+      "length": 255
+    }
+  },
+  "productid": {
+    "name": "Product Id",
+    "name_zh": "产品ID",
+    "description": "Product Id",
+    "description_zh": "产品ID",
+    "attribute": "required",
+    "type": "string",
+    "default": "",
+    "valid": {
+      "length": 255
+    }
+  },
+  "firmwareversion": {
+    "name": "Firmware Version",
+    "name_zh": "固件版本",
+    "description": "Firmware Version",
+    "description_zh": "固件版本",
+    "attribute": "required",
+    "type": "string",
+    "default": "",
+    "valid": {
+      "length": 255
+    }
+  },
+  "interval": {
+    "name": "Sending interval",
+    "name_zh": "数据上报时间间隔",
+    "description": "The time interval for sending data",
+    "description_zh": "发送数据的时间间隔",
+    "attribute": "required",
+    "type": "int",
+    "default": 5,
+    "valid": {
+      "min": 1,
+      "max": 65535
+    }
+  }
+}
