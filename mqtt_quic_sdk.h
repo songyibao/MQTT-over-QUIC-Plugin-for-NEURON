@@ -47,7 +47,7 @@
 #include "nng/nng.h"
 #include "nng/supplemental/util/platform.h"
 
-#include <msquic/msquic.h>
+#include <msquic.h>
 
 #include "mqtt_quic_plugin.h"
 #include <stdio.h>

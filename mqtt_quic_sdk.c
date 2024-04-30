@@ -44,7 +44,7 @@
 #include "mqtt_quic_plugin.h"
 #include "mqtt_quic_sdk.h"
 #include <cjson/cJSON.h>
-#include <msquic/msquic.h>
+#include <msquic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "mqtt_quic_config.h"
