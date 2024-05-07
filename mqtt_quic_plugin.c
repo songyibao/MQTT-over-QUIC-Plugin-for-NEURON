@@ -45,6 +45,8 @@ static neu_plugin_t *driver_open(void)
     neu_plugin_t *plugin = calloc(1, sizeof(neu_plugin_t));
 
     neu_plugin_common_init(&plugin->common);
+    plugin->common.link_state = NEU_NODE_LINK_STATE_DISCONNECTED;
+    plugin->client = NULL;
     return plugin;
 }
 
@@ -54,7 +56,7 @@ static int driver_close(neu_plugin_t *plugin)
 
     return 0;
 }
-
+// driver_init -> driver_config -> driver_start
 static int driver_init(neu_plugin_t *plugin, bool load)
 {
     (void) load;
@@ -63,10 +65,10 @@ static int driver_init(neu_plugin_t *plugin, bool load)
         "============================================================"
         "\ninitialize "
         "plugin============================================================\n");
-    plugin->client = (mqtt_quic_client_t *) malloc(sizeof(mqtt_quic_client_t));
-    plugin->client->device_info =
-        (device_info_t *) malloc(sizeof(device_info_t));
-    plugin->client->topic_info = (topic_info_t *) malloc(sizeof(topic_info_t));
+
+    // 这两个函数先后顺序不能变
+    plugin->events = neu_event_new();
+    add_connection_status_checker(plugin);
     return 0;
 }
 
@@ -77,41 +79,17 @@ static int driver_config(neu_plugin_t *plugin, const char *setting)
         "============================================================\nconfig "
         "plugin============================================================\n");
     int res = 0;
-    if(plugin->started == true || plugin->common.link_state ==
-            NEU_NODE_LINK_STATE_CONNECTED){
-        plog_debug(plugin,"销毁正在执行的实例");
-        client_unsubscribe(plugin);
-        client_disconnect(plugin);
-        client_uninit(plugin);
-    }
     // 解析插件配置（包含设备信息）
     res = quic_mqtt_config_parse(plugin, setting);
     if(res!=0){
         plog_error(plugin,"config parse failed");
         return -1;
     }
+    if(plugin->client!=NULL){
+        stop_and_free_client(plugin);
+    }
 
-    // 配置 MQTT over QUIC 连接
-    res = config_client(plugin);
-    if(res!=0){
-            plog_error(plugin,"config client failed");
-            return -1;
-    }
-    // 配置订阅和发布的主题
-    res = config_topic_info(plugin);
-    if(res!=0){
-            plog_error(plugin,"config topic info failed");
-            return -1;
-    }
-    // 实时监测次数，默认为 0 ,表示没有实时监测事件
-    plugin->monitor_count = 0;
-    if(plugin->started == true){
-        res = driver_start(plugin);
-        if(res!=0){
-            plog_error(plugin,"driver start failed");
-            return -1;
-        }
-    }
+
     return res;
 
 }
@@ -122,45 +100,20 @@ static int driver_start(neu_plugin_t *plugin)
         plugin,
         "============================================================\nstart "
         "plugin============================================================\n");
-    // 初始化 MQTT over QUIC 客户端(开启一个 nng_sock)
-    int res;
-    res = client_init(plugin);
-    if(res!=0){
-        plog_error(plugin,"client init failed");
-        return -1;
-    }
-    // 用创建好的 client 发起连接
-    res = client_connect(plugin);
-    if(res!=0){
-            plog_error(plugin,"client connect failed");
-            return -1;
-    }
-    // 订阅主题
-    res = client_subscribe(plugin);
-    if(res!=0){
-            plog_error(plugin,"client subscribe failed");
-            return -1;
-    }
-    // 发布设备在线信息
-    publishInfo(plugin,3);
+
     plugin->timer = 0;
     plugin->started = true;
-    return res;
+    return 0;
 }
 
 static int driver_stop(neu_plugin_t *plugin)
 {
-    plugin->monitor_count = 0;
-    plugin->timer = 0;
-    // 发送设备离线信息
-    publishInfo(plugin,4);
-    // 取消订阅主题
-    client_unsubscribe(plugin);
-    client_disconnect(plugin);
+
     plog_notice(
         plugin,
         "============================================================\nstop "
         "plugin============================================================\n");
+    plugin->timer = 0;
     plugin->started = false;
     return 0;
 }
@@ -172,8 +125,9 @@ static int driver_uninit(neu_plugin_t *plugin)
         "============================================================\nuninit "
         "plugin============================================================\n");
 
-
-    client_uninit(plugin);
+    if(plugin->client!=NULL){
+        stop_and_free_client(plugin);
+    }
     free(plugin);
     nlog_debug("uninit success");
     return NEU_ERR_SUCCESS;
@@ -182,18 +136,33 @@ static int driver_uninit(neu_plugin_t *plugin)
 static int driver_request(neu_plugin_t *plugin, neu_reqresp_head_t *head,
                           void *data)
 {
-    plugin->timer++;
     plog_notice(
         plugin,
         "============================================================request "
         "plugin============================================================\n");
+
+    // 打印plugin->client地址
+    plog_debug(plugin,"plugin->client:0x%p",plugin->client);
+    // driver_request触发说明南向插件已经启动且被本插件订阅，需要检查上传通道状态以准备传输数据
+    if(plugin->client == NULL){
+        stop_and_free_client(plugin);
+        int res = create_and_config_and_start_client(plugin);
+        if(res!=0){
+            plog_error(plugin,"连接失败");
+            // 保证创建失败的话,plugin->client为NULL
+            stop_and_free_client(plugin);
+            return NEU_ERR_PLUGIN_DISCONNECTED;
+        }
+    }
+    // 本插件未启动，不处理请求
+    if(plugin->started == false){
+        return NEU_ERR_PLUGIN_NOT_RUNNING;
+    }
+    // 连接已就绪，插件已启动，进入数据处理流程
+    plugin->timer++;
     neu_err_code_e error = NEU_ERR_SUCCESS;
     switch (head->type) {
-
     case NEU_REQRESP_TRANS_DATA: {
-        if(plugin->common.link_state == NEU_NODE_LINK_STATE_DISCONNECTED){
-            break;
-        }
         if(plugin->monitor_count>0){
             plog_debug(plugin,"发布监测数据");
             plugin->monitor_count--;
@@ -205,6 +174,7 @@ static int driver_request(neu_plugin_t *plugin, neu_reqresp_head_t *head,
                 handle_trans_data(plugin,data,pPropertyTopic);
             }
         }
+        break;
     }
     default:
         break;

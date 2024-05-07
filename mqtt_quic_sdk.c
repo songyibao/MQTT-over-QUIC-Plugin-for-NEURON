@@ -126,6 +126,16 @@ static nng_msg *compose_connect()
 
     return msg;
 }
+static nng_msg *compose_keep_alive()
+{
+    nng_msg *msg;
+    nng_mqtt_msg_alloc(&msg, 0);
+    nng_mqtt_msg_set_packet_type(msg, NNG_MQTT_PINGREQ);
+
+    nng_mqtt_msg_set_connect_proto_version(msg, MQTT_PROTOCOL_VERSION_v5);
+
+    return msg;
+}
 // 修改后的函数原型，支持多个主题订阅
 static nng_msg *compose_subscribe_multiple(int *qos, char **topics, int topic_count) {
     nng_msg *msg;
@@ -243,10 +253,18 @@ static int connect_cb(void *rmsg, void *arg)
 {
     neu_plugin_t *plugin = arg;
     plog_debug(plugin,"[Connected]");
-    plugin->common.link_state = NEU_NODE_LINK_STATE_CONNECTED;
     return 0;
 }
+static void aio_connect_cb(void *arg)
+{
 
+    neu_plugin_t  *plugin = (neu_plugin_t *)arg;
+    int res = nng_aio_result(plugin->client->aio);
+    plog_debug(plugin,"异步回调返回结果：%d",res);
+//    plugin->check_connect_status_waiting_flag = false;
+//    plugin->common.link_state = NEU_NODE_LINK_STATE_CONNECTED;
+//    printf("[Aio Connected][%s]...\n", (char *) arg);
+}
 static int disconnect_cb(void *rmsg, void *arg)
 {
     neu_plugin_t *plugin = arg;
@@ -269,6 +287,9 @@ static int msg_recv_cb(void *rmsg, void *arg)
     neu_plugin_t *plugin = arg;
     plog_debug(plugin,"[Msg Arrived]");
     nng_msg *msg = rmsg;
+//    if(nng_mqtt_msg_get_packet_type(rmsg) == NNG_MQTT_PINGRESP){
+//        plugin->common.link_state = NEU_NODE_LINK_STATE_CONNECTED;
+//    }
     uint32_t topicsz, payloadsz;
 
     char *topic   = (char *) nng_mqtt_msg_get_publish_topic(msg, &topicsz);
@@ -318,17 +339,26 @@ static int sqlite_config(nng_socket *sock, uint8_t proto_ver)
 #endif
 }
 
-static void sendmsg_func(void *arg)
+// flag 为无效参数, 内部会释放 msg
+int sendmsg_func(nng_socket sock,nng_msg *msg,int flag)
 {
-    nng_socket *sock = arg;
-    nng_msg    *msg  = compose_publish(1, "topic123", "hello quic");
+    int res = 0;
 
-    for (;;) {
+    for (int i=0;i<3;i++) {
+        nlog_debug("尝试发送消息，第 %d 轮循环",i);
+        res = nng_sendmsg(sock, msg, NNG_FLAG_NONBLOCK);
+        nlog_debug("第 %d 次尝试完成",i);
+        if(res == 0){
+            nlog_debug("发送消息成功，第 %d 轮循环",i);
+            return 0;
+        }else if(res==NNG_EAGAIN){
+            // 例如，如果由于对等方消耗消息太慢而存在背压，或者不存在对等方，那么可能会返回NNG_EAGAIN
+            // 如果没有NNG_FLAG_NONBLOCK标志，则nng_sendmsg将一直阻塞
+            nlog_debug("发送消息失败，等待 1 秒后重试");
+        }
         nng_msleep(1000);
-        nng_msg *smsg;
-        nng_msg_dup(&smsg, msg);
-        nng_sendmsg(*sock, smsg, NNG_FLAG_NONBLOCK);
     }
+    return -1;
 }
 int free_conf_tls(conf_tls *tls) {
     if(tls){
@@ -426,15 +456,15 @@ int client_connect(neu_plugin_t *plugin) {
 
     // 发送MQTT连接消息
     msg = compose_connect();
-    // 设置发送超时
-    int timeout_ms = 2000; // 设置超时为2000毫秒
-    if (0 != nng_socket_set_ms(client->sock, NNG_OPT_SENDTIMEO, timeout_ms)) {
-        printf("error in setting send timeout.\n");
-        nng_close(client->sock);
-        return -1;
-    }
+//    // 设置发送超时
+//    int timeout_ms = 2000; // 设置超时为2000毫秒
+//    if (0 != nng_socket_set_ms(client->sock, NNG_OPT_SENDTIMEO, timeout_ms)) {
+//        printf("error in setting send timeout.\n");
+//        nng_close(client->sock);
+//        return -1;
+//    }
     plog_debug(plugin,"发送MQTT连接消息");
-    int send_result = nng_sendmsg(client->sock, msg, NNG_FLAG_ALLOC);
+    int send_result = sendmsg_func(client->sock, msg, NNG_FLAG_ALLOC);
     if (send_result != 0) {
         printf("error in sending message: %d\n", send_result);
         plog_debug(plugin,"发送MQTT连接消息超时");
@@ -445,39 +475,71 @@ int client_connect(neu_plugin_t *plugin) {
 
     return 0; // 成功
 }
+
+
+// 发送成功返回 0 失败返回 -1
+int client_keepalive(neu_plugin_t *plugin) {
+    mqtt_quic_client_t *client = plugin->client;
+    plog_debug(plugin,"client_keepalive:url=>%s",client->url);
+    // 设置异步请求的回调函数
+    int rv = 0;
+    if ((rv = nng_aio_alloc(&client->aio, aio_connect_cb, plugin)) != 0) {
+        plog_error(plugin,"nng_aio_alloc failed: %d", rv);
+        return -1;
+    }
+
+    // 发送MQTT连接保活消息
+    nng_msg *msg = compose_keep_alive();
+    // 设置发送超时
+//    int timeout_ms = 2000; // 设置超时为2000毫秒
+//    if (0 != nng_socket_set_ms(client->sock, NNG_OPT_SENDTIMEO, timeout_ms)) {
+//        printf("error in setting send timeout.\n");
+//        nng_close(client->sock);
+//        return -1;
+//    }
+    plog_debug(plugin,"发送MQTT Keep-Alive 消息");
+    nng_aio_set_msg(client->aio,msg);
+    // 设置检查连接状态等待标志为等待中
+    plugin->check_connect_status_waiting_flag = true;
+    nng_send_aio(client->sock,client->aio);
+//    int send_result = sendmsg_func(client->sock, msg, NNG_FLAG_ALLOC);
+//    if (send_result != 0) {
+//        plog_debug(plugin,"发送MQTT Keep-Alive 消息超时");
+//        return -1;
+//    }else{
+//        plog_debug(plugin,"发送MQTT Keep-Alive 消息成功");
+//    }
+    return 0;
+}
 int client_disconnect(neu_plugin_t *plugin) {
     mqtt_quic_client_t *client = plugin->client;
-    int rv;
+    int res=0;
 
     // 检查客户端是否已初始化
     if (client == NULL) {
         printf("Client not initialized.\n");
-        return 1;
+        return -1;
     }
 
     // 可以在这里添加更多的清理步骤，例如发送断开连接的MQTT消息等。
 
     // 关闭QUIC客户端连接
-    rv = nng_close(client->sock);
-    if (rv != 0) {
-        printf("Error closing the client: %d\n", rv);
-        return rv;
+    res = nng_close(client->sock);
+    if (res != 0) {
+        printf("Error closing the client: %d\n", res);
+        return res;
     }
 
     // 在这里可以添加释放其它已分配资源的代码
 
     printf("Client disconnected successfully.\n");
-    return 0; // 成功断开连接
-}
-int client_uninit(neu_plugin_t *plugin){
-    mqtt_quic_client_t *client = plugin->client;
-    free_mqtt_quic_client(client);
-    return 0;
+    return res; // 成功断开连接
 }
 int client_subscribe(neu_plugin_t *plugin) {
     mqtt_quic_client_t *client = plugin->client;
     int q = client->qos;
 
+    plog_debug(plugin,"client->qos:%d",q);
     if (q < 0 || q > 2) {
         printf("Qos should be in range(0~2).\n");
         return 1;
@@ -486,7 +548,8 @@ int client_subscribe(neu_plugin_t *plugin) {
     nng_msg *msg = compose_subscribe_multiple(topic_info->qos,
                                                           topic_info->s_topics,
                                                           topic_info->s_topic_count);
-    nng_sendmsg(client->sock, msg, NNG_FLAG_ALLOC);
+
+    sendmsg_func(client->sock, msg, NNG_FLAG_ALLOC);
 
     return 0; // 成功
 }
@@ -497,7 +560,7 @@ int client_unsubscribe(neu_plugin_t *plugin) {
     // 检查QoS值是否在有效范围内
     if (q < 0 || q > 2) {
         printf("Qos should be in range(0~2).\n");
-        return 1;
+        return -1;
     }
 
     topic_info_t *topic_info = client->topic_info;
@@ -507,7 +570,7 @@ int client_unsubscribe(neu_plugin_t *plugin) {
                                                 topic_info->s_topic_count);
 
     // 发送取消订阅的消息
-    nng_sendmsg(client->sock, msg, NNG_FLAG_ALLOC);
+    sendmsg_func(client->sock, msg, NNG_FLAG_ALLOC);
 
     return 0; // 成功
 }
@@ -521,8 +584,13 @@ int client_publish(neu_plugin_t *plugin,const char *topic, const char *data) {
     }
 
     nng_msg *msg = compose_publish(q, (char *)topic, (char *)data);
-    nng_sendmsg(client->sock, msg, NNG_FLAG_ALLOC);
-
+    int res = sendmsg_func(client->sock, msg, NNG_FLAG_ALLOC);
+    if(res!=0){
+        plog_error(plugin,"连接中断");
+        plugin->common.link_state = NEU_NODE_LINK_STATE_DISCONNECTED;
+        stop_and_free_client(plugin);
+        return res;
+    }
     return 0; // 成功
 }
 
@@ -566,6 +634,7 @@ void publishProperty(neu_plugin_t *plugin, const char *json_str) {
 void publish_monitor(neu_plugin_t *plugin, const char *json_str) {
     client_publish(plugin,plugin->client->topic_info->p_topics[pMonitorTopic], json_str);
 }
+
 //int main(int argc, char **argv)
 //{
 //    int rc;

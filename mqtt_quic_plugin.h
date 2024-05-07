@@ -29,6 +29,7 @@ typedef struct topic_info {
 } topic_info_t;
 typedef struct mqtt_quic_client {
     nng_socket     sock;
+    nng_aio *aio;
     char          *url;
     int            qos;
     conf_quic     *conf;
@@ -39,9 +40,25 @@ typedef struct mqtt_quic_client {
 
 struct neu_plugin {
     neu_plugin_common_t common;
+
     mqtt_quic_client_t *client;
-    // 插件内计时器
+
+    // 数据临时存储区，创建 client 时需要用到
+    // ps：为什么不直接放在client 里面？因为 client 是在 driver_request 里面从零开始创建的（为了将client的创建和销毁逻辑统一化简单化），而这些临时数据在 driver_config 里面就需要被先解析好备用
+    int            qos;
+    char          *url;
+    char *device_id;
+    char *user_id;
+    char *product_id;
+    char *firmware_version;
+
+    bool check_connect_status_waiting_flag;
+    uint16_t aio_cb_timer;
+    // 插件内简单的加法计时器
     uint16_t timer;
+    // NEURON 内部实现的定时器
+    neu_event_timer_t *neu_timer;
+    neu_events_t      *events;
     // 实时监测请求的监测次数，默认为 0，表示无实时监测请求
     uint16_t monitor_count;
     // 数据上报间隔

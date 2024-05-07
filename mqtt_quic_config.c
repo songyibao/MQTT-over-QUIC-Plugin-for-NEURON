@@ -67,35 +67,35 @@ int quic_mqtt_config_parse(neu_plugin_t *plugin, const char *setting)
         plog_error(plugin, "setting invalid port: %" PRIi64, qos.v.val_int);
         goto error;
     }
-    plugin->client->url = url.v.val_str;
+    plugin->url = url.v.val_str;
     switch (qos.v.val_int) {
     case 0:
-        plugin->client->qos = 0;
+        plugin->qos = 0;
         break;
     case 1:
-        plugin->client->qos = 1;
+        plugin->qos = 1;
         break;
     case 2:
-        plugin->client->qos = 2;
+        plugin->qos = 2;
         break;
     default:
         break;
     }
-    plugin->client->device_info->device_id        = deviceid.v.val_str;
-    plugin->client->device_info->user_id          = userid.v.val_str;
-    plugin->client->device_info->product_id       = productid.v.val_str;
-    plugin->client->device_info->firmware_version = firmwareversion.v.val_str;
+    plugin->device_id = deviceid.v.val_str;;
+    plugin->user_id = userid.v.val_str;
+    plugin->product_id = productid.v.val_str;
+    plugin->firmware_version = firmwareversion.v.val_str;
     plugin->interval        = interval.v.val_int;
-    plog_notice(plugin, "config url            : %s", plugin->client->url);
-    plog_notice(plugin, "config qos            : %d", plugin->client->qos);
+    plog_notice(plugin, "config url            : %s", plugin->url);
+    plog_notice(plugin, "config qos            : %d", plugin->qos);
     plog_notice(plugin, "config deviceid       : %s",
-                plugin->client->device_info->device_id);
+                plugin->device_id);
     plog_notice(plugin, "config userid         : %s",
-                plugin->client->device_info->user_id);
+                plugin->user_id);
     plog_notice(plugin, "config productid      : %s",
-                plugin->client->device_info->product_id);
+                plugin->product_id);
     plog_notice(plugin, "config firmwareversion: %s",
-                plugin->client->device_info->firmware_version);
+                plugin->firmware_version);
     plog_notice(plugin, "config interval       : %d", plugin->interval);
 
     return 0;
@@ -154,6 +154,21 @@ int config_topic_info(neu_plugin_t *plugin)
     plugin->client->topic_info = topic_info;
     return 0;
 }
+int config_device_info(neu_plugin_t *plugin){
+    plugin->client->qos = plugin->qos;
+    plugin->client->url = (char *)malloc(strlen(plugin->url)+1);
+    strcpy(plugin->client->url,plugin->url);
+    plugin->client->device_info->device_id = (char *)malloc(strlen(plugin->device_id)+1);
+    strcpy(plugin->client->device_info->device_id,plugin->device_id);
+    plugin->client->device_info->user_id = (char *)malloc(strlen(plugin->user_id)+1);
+    strcpy(plugin->client->device_info->user_id,plugin->user_id);
+    plugin->client->device_info->product_id = (char *)malloc(strlen(plugin->product_id)+1);
+    strcpy(plugin->client->device_info->product_id,plugin->product_id);
+    plugin->client->device_info->firmware_version = (char *)malloc(strlen(plugin->firmware_version)+1);
+    strcpy(plugin->client->device_info->firmware_version,plugin->firmware_version);
+
+    return 0;
+}
 // 释放device_info_t结构体
 void free_device_info(device_info_t *info) {
     if (info) {
@@ -181,13 +196,168 @@ void free_topic_info(topic_info_t *info) {
     }
 }
 
-// 释放mqtt_quic_client_t结构体
-void free_mqtt_quic_client(mqtt_quic_client_t *client) {
-    if (client) {
+// 初始化 client 结构体
+void init_mqtt_quic_client(neu_plugin_t *plugin) {
+    if(plugin->client!=NULL){
+        stop_and_free_client(plugin);
+    }
+    plugin->client = (mqtt_quic_client_t *) malloc(sizeof(mqtt_quic_client_t));
+    plugin->client->device_info =
+            (device_info_t *) malloc(sizeof(device_info_t));
+    plugin->client->topic_info = (topic_info_t *) malloc(sizeof(topic_info_t));
+}
+
+// 发起 client 连接
+int start_mqtt_quic_client(neu_plugin_t *plugin) {
+    if(plugin->client == NULL){
+        plog_error(plugin,"plugin->client is NULL");
+        return -1;
+    }
+    // 初始化 MQTT over QUIC 客户端(开启一个 nng_sock)
+    int res=0;
+    res = client_init(plugin);
+    if(res!=0){
+        plog_error(plugin,"client init failed");
+        return -1;
+    }
+    // 用创建好的 client 发起连接
+    res = client_connect(plugin);
+    if(res!=0){
+        plog_error(plugin,"client connect failed");
+        return -1;
+    }
+    // 订阅主题
+    res = client_subscribe(plugin);
+    if(res!=0){
+        plog_error(plugin,"client subscribe failed");
+        return -1;
+    }
+    // 发布设备在线信息
+    publishInfo(plugin,3);
+    return res;
+}
+int stop_mqtt_quic_client(neu_plugin_t *plugin) {
+    int res=0;
+    plugin->monitor_count = 0;
+    plugin->timer = 0;
+    // 发送设备离线信息
+    if(plugin->common.link_state == NEU_NODE_LINK_STATE_CONNECTED){
+        publishInfo(plugin,4);
+    }
+
+    // 取消订阅主题
+    res = client_unsubscribe(plugin);
+    if(res!=0){
+        plog_error(plugin,"publish device offline info failed");
+        return -1;
+    }
+    res = client_disconnect(plugin);
+    if(res!=0){
+        plog_error(plugin,"client disconnect failed");
+        return -1;
+    }
+    return res;
+}
+
+// 配置 client 参数
+int config_mqtt_quic_client(neu_plugin_t *plugin) {
+    if(plugin->client == NULL){
+        plog_error(plugin,"plugin->client is NULL");
+        return -1;
+    }
+    int res=0;
+    // 配置 MQTT over QUIC 连接
+    res = config_client(plugin);
+    if(res!=0){
+        plog_error(plugin,"config client failed");
+        return res;
+    }
+    // 配置设备信息
+    res = config_device_info(plugin);
+    if(res!=0){
+        plog_error(plugin,"config device info failed");
+        return res;
+    }
+    // 配置订阅和发布的主题
+    res = config_topic_info(plugin);
+    if(res!=0){
+        plog_error(plugin,"config topic info failed");
+        return res;
+    }
+    // 实时监测次数，默认为 0 ,表示没有实时监测事件
+    plugin->monitor_count = 0;
+    return res;
+}
+
+// 释放 client 结构体
+void free_mqtt_quic_client(neu_plugin_t *plugin) {
+    mqtt_quic_client_t *client = plugin->client;
+    if (client!=NULL) {
         free(client->url);
         free_client_config(client->conf); // 假设这个函数已经定义
         free_device_info(client->device_info);
         free_topic_info(client->topic_info);
         free(client);
     }
+    plugin->client = NULL;
+}
+
+int create_and_config_and_start_client(neu_plugin_t *plugin) {
+    int res=0;
+    if(plugin->client != NULL){
+        res = stop_and_free_client(plugin);
+        if(res == -1){
+            plog_error(plugin,"stop and free client failed");
+            return -1;
+        }
+    }
+    init_mqtt_quic_client(plugin);
+    res = config_mqtt_quic_client(plugin);
+    if(res!=0){
+        plog_error(plugin,"config mqtt quic client failed");
+        free_mqtt_quic_client(plugin);
+        return -1;
+    }
+    res = start_mqtt_quic_client(plugin);
+    if(res!=0){
+        plog_error(plugin,"start mqtt quic client failed");
+        free_mqtt_quic_client(plugin);
+        return -1;
+    }
+    return res;
+}
+
+int stop_and_free_client(neu_plugin_t *plugin) {
+    if(plugin->client == NULL){
+        return 0;
+    }
+    int res=0;
+    res = stop_mqtt_quic_client(plugin);
+    if(res!=0){
+        plog_error(plugin,"stop mqtt quic client failed");
+        free_mqtt_quic_client(plugin);
+        return -1;
+    }
+    free_mqtt_quic_client(plugin);
+    plugin->common.link_state = NEU_NODE_LINK_STATE_DISCONNECTED;
+    return res;
+}
+int check_plugin_status_callback(void *data){
+    neu_plugin_t  *plugin = (neu_plugin_t *)data;
+    if(plugin->client == NULL){
+        plugin->common.link_state = NEU_NODE_LINK_STATE_DISCONNECTED;
+    }else{
+        plugin->common.link_state = NEU_NODE_LINK_STATE_CONNECTED;
+    }
+    return 0;
+}
+void add_connection_status_checker(neu_plugin_t *plugin)
+{
+    neu_event_timer_param_t param = { .second      = 3,
+            .millisecond = 0,
+            .cb          = check_plugin_status_callback,
+            .usr_data    = (void *) plugin,
+            .type        = NEU_EVENT_TIMER_NOBLOCK };
+
+    plugin->neu_timer = neu_event_add_timer(plugin->events, param);
 }

@@ -73,7 +73,6 @@ int client_connect(neu_plugin_t *plugin);
 int client_subscribe(neu_plugin_t *plugin);
 int client_unsubscribe(neu_plugin_t *plugin);
 int client_disconnect(neu_plugin_t *plugin);
-int client_uninit(neu_plugin_t *plugin);
 int client_publish(neu_plugin_t *plugin, const char *topic,
                    const char *data);
 // 发布设备信息，status -->  1-未激活，2-禁用，3-在线，4-离线
@@ -82,4 +81,6 @@ void publishInfo(neu_plugin_t *plugin,uint8_t status);
 void publishProperty(neu_plugin_t *plugin, const char *json_str);
 void publish_monitor(neu_plugin_t *plugin, const char *json_str);
 int free_client_config(conf_quic *conf);
+int client_keepalive(neu_plugin_t *plugin);
+int sendmsg_func(nng_socket sock,nng_msg *msg,int flag);
 #endif // NEURON_MQTT_QUIC_SDK_H
