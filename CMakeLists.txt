@@ -30,11 +30,12 @@ if (DEBUG)
 endif (DEBUG)
 
 add_library(plugin-mqtt-quic SHARED mqtt_quic_plugin.c mqtt_quic_config.c mqtt_quic_sdk.c
-        mqtt_quic_handle.c json_rw.c)
-if(OPENSSL_FOUND)
+        mqtt_quic_handle.c json_rw.c
+        quic_conn_status_detect/detector.c)
+if (OPENSSL_FOUND)
     include_directories(${OPENSSL_INCLUDE_DIRS})
     target_link_libraries(plugin-mqtt-quic PRIVATE OpenSSL::Crypto OpenSSL::SSL)
-endif()
+endif ()
 
 target_include_directories(plugin-mqtt-quic PRIVATE
         #        ${CMAKE_SOURCE_DIR}/include/neuron
@@ -47,7 +48,7 @@ target_link_directories(plugin-mqtt-quic PRIVATE /own/lib/lib)
 target_link_libraries(plugin-mqtt-quic PRIVATE nng msquic pthread)
 target_link_libraries(plugin-mqtt-quic PRIVATE /usr/local/lib/libcjson.a)
 
-target_link_libraries(plugin-mqtt-quic PRIVATE  z ev)
+target_link_libraries(plugin-mqtt-quic PRIVATE z ev)
 target_link_libraries(plugin-mqtt-quic PRIVATE /usr/local/lib/neuron/libneuron-base.so)
 
 target_compile_definitions(plugin-mqtt-quic PRIVATE NNG_ELIDE_DEPRECATED)

@@ -7,6 +7,7 @@
 #include "mqtt_quic_handle.h"
 #include "mqtt_quic_sdk.h"
 #include "neuron.h"
+#include "quic_conn_status_detect/detector.h"
 #include <pthread.h>
 #include <stdlib.h>
 #define DESCRIPTION "Northbound MQTT over QUIC plugin bases on NanoSDK."
@@ -46,7 +47,7 @@ static neu_plugin_t *driver_open(void)
 
     neu_plugin_common_init(&plugin->common);
     plugin->common.link_state = NEU_NODE_LINK_STATE_DISCONNECTED;
-    plugin->client = NULL;
+
     return plugin;
 }
 
@@ -60,12 +61,14 @@ static int driver_close(neu_plugin_t *plugin)
 static int driver_init(neu_plugin_t *plugin, bool load)
 {
     (void) load;
-    plog_notice(
-        plugin,
-        "============================================================"
-        "\ninitialize "
-        "plugin============================================================\n");
-
+    plog_notice(plugin,
+                "============================================================"
+                "\ninitialize "
+                "plugin============================================================\n");
+    plugin->client                = NULL;
+    plugin->connected             = false;
+    plugin->timer                 = 0;
+    plugin->keep_alive_conn_count = 0;
     // 这两个函数先后顺序不能变
     plugin->events = neu_event_new();
     add_connection_status_checker(plugin);
@@ -74,34 +77,33 @@ static int driver_init(neu_plugin_t *plugin, bool load)
 
 static int driver_config(neu_plugin_t *plugin, const char *setting)
 {
-    plog_notice(
-        plugin,
-        "============================================================\nconfig "
-        "plugin============================================================\n");
+    plog_notice(plugin,
+                "============================================================\nconfig "
+                "plugin============================================================\n");
     int res = 0;
     // 解析插件配置（包含设备信息）
     res = quic_mqtt_config_parse(plugin, setting);
-    if(res!=0){
-        plog_error(plugin,"config parse failed");
+    if (res != 0) {
+        plog_error(plugin, "config parse failed");
         return -1;
     }
-    if(plugin->client!=NULL){
+    if (plugin->client != NULL) {
         stop_and_free_client(plugin);
     }
-
+    if (plugin->keep_alive_conn_count == 1) {
+        close_keep_alive_conn(plugin);
+    }
 
     return res;
-
 }
 
 static int driver_start(neu_plugin_t *plugin)
 {
-    plog_notice(
-        plugin,
-        "============================================================\nstart "
-        "plugin============================================================\n");
+    plog_notice(plugin,
+                "============================================================\nstart "
+                "plugin============================================================\n");
 
-    plugin->timer = 0;
+    plugin->timer   = 0;
     plugin->started = true;
     return 0;
 }
@@ -109,23 +111,21 @@ static int driver_start(neu_plugin_t *plugin)
 static int driver_stop(neu_plugin_t *plugin)
 {
 
-    plog_notice(
-        plugin,
-        "============================================================\nstop "
-        "plugin============================================================\n");
-    plugin->timer = 0;
+    plog_notice(plugin,
+                "============================================================\nstop "
+                "plugin============================================================\n");
+    plugin->timer   = 0;
     plugin->started = false;
     return 0;
 }
 
 static int driver_uninit(neu_plugin_t *plugin)
 {
-    plog_notice(
-        plugin,
-        "============================================================\nuninit "
-        "plugin============================================================\n");
+    plog_notice(plugin,
+                "============================================================\nuninit "
+                "plugin============================================================\n");
 
-    if(plugin->client!=NULL){
+    if (plugin->client != NULL) {
         stop_and_free_client(plugin);
     }
     free(plugin);
@@ -133,45 +133,47 @@ static int driver_uninit(neu_plugin_t *plugin)
     return NEU_ERR_SUCCESS;
 }
 
-static int driver_request(neu_plugin_t *plugin, neu_reqresp_head_t *head,
-                          void *data)
+static int driver_request(neu_plugin_t *plugin, neu_reqresp_head_t *head, void *data)
 {
-    plog_notice(
-        plugin,
-        "============================================================request "
-        "plugin============================================================\n");
-
+    plog_notice(plugin,
+                "============================================================request "
+                "plugin============================================================\n");
+    if (plugin->connected == false) {
+        plog_error(plugin, "插件未连接，无法启动client发送数据");
+        return NEU_ERR_PLUGIN_DISCONNECTED;
+    }
+    // 本插件未启动，不处理请求
+    if (plugin->started == false) {
+        return NEU_ERR_PLUGIN_NOT_RUNNING;
+    }
+    // client的建立逻辑属于已知连接可用时的数据传输逻辑，所以放在判断插件是否启动的逻辑之后（未启动不需要传输数据），而连接可用状态监测有单独的线程监测
     // 打印plugin->client地址
-    plog_debug(plugin,"plugin->client:0x%p",plugin->client);
-    // driver_request触发说明南向插件已经启动且被本插件订阅，需要检查上传通道状态以准备传输数据
-    if(plugin->client == NULL){
+    plog_debug(plugin, "plugin->client:0x%p", plugin->client);
+    // 如果client为空，重新创建client
+    if (plugin->client == NULL) {
         stop_and_free_client(plugin);
         int res = create_and_config_and_start_client(plugin);
-        if(res!=0){
-            plog_error(plugin,"连接失败");
+        if (res != 0) {
+            plog_error(plugin, "连接失败");
             // 保证创建失败的话,plugin->client为NULL
             stop_and_free_client(plugin);
             return NEU_ERR_PLUGIN_DISCONNECTED;
         }
     }
-    // 本插件未启动，不处理请求
-    if(plugin->started == false){
-        return NEU_ERR_PLUGIN_NOT_RUNNING;
-    }
-    // 连接已就绪，插件已启动，进入数据处理流程
+    // 连接已就绪，插件已启动，client 已创建, 进入数据处理流程
     plugin->timer++;
     neu_err_code_e error = NEU_ERR_SUCCESS;
     switch (head->type) {
     case NEU_REQRESP_TRANS_DATA: {
-        if(plugin->monitor_count>0){
-            plog_debug(plugin,"发布监测数据");
+        if (plugin->monitor_count > 0) {
+            plog_debug(plugin, "发布监测数据");
             plugin->monitor_count--;
-            handle_trans_data(plugin,data,pMonitorTopic);
-        }else{
-            if(plugin->timer >= plugin->interval){
+            handle_trans_data(plugin, data, pMonitorTopic);
+        } else {
+            if (plugin->timer >= plugin->interval) {
                 plugin->timer = 0;
-                plog_debug(plugin,"上报数据");
-                handle_trans_data(plugin,data,pPropertyTopic);
+                plog_debug(plugin, "上报数据");
+                handle_trans_data(plugin, data, pPropertyTopic);
             }
         }
         break;
@@ -200,8 +202,7 @@ static int driver_group_timer(neu_plugin_t *plugin, neu_plugin_group_t *group)
     return 0;
 }
 
-static int driver_write(neu_plugin_t *plugin, void *req, neu_datatag_t *tag,
-                        neu_value_u value)
+static int driver_write(neu_plugin_t *plugin, void *req, neu_datatag_t *tag, neu_value_u value)
 {
     (void) plugin;
     (void) req;

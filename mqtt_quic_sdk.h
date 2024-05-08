@@ -67,20 +67,18 @@
 #define pMonitorTopic 4
 #define pEventTopic 5
 int config_client(neu_plugin_t *plugin);
-int client_init(neu_plugin_t *plugin);
+int client_open(neu_plugin_t *plugin);
 int client_connect(neu_plugin_t *plugin);
 
 int client_subscribe(neu_plugin_t *plugin);
 int client_unsubscribe(neu_plugin_t *plugin);
 int client_disconnect(neu_plugin_t *plugin);
-int client_publish(neu_plugin_t *plugin, const char *topic,
-                   const char *data);
+int client_publish(neu_plugin_t *plugin, const char *topic, const char *data);
 // 发布设备信息，status -->  1-未激活，2-禁用，3-在线，4-离线
-void publishInfo(neu_plugin_t *plugin,uint8_t status);
+void publishInfo(neu_plugin_t *plugin, uint8_t status);
 // 发布设备监测属性 {"id":"temperature","value":25.5,"remark":1620000000}
 void publishProperty(neu_plugin_t *plugin, const char *json_str);
 void publish_monitor(neu_plugin_t *plugin, const char *json_str);
-int free_client_config(conf_quic *conf);
-int client_keepalive(neu_plugin_t *plugin);
-int sendmsg_func(nng_socket sock,nng_msg *msg,int flag);
+int  free_client_config(conf_quic *conf);
+int  sendmsg_func(nng_socket sock, nng_msg *msg, int flag, void *arg);
 #endif // NEURON_MQTT_QUIC_SDK_H

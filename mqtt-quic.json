@@ -1,14 +1,27 @@
 {
-  "url": {
-    "name": "Broker Url",
-    "name_zh": "服务器地址",
-    "description": "MQTT broker Url",
-    "description_zh": "MQTT 服务器地址",
+  "host": {
+    "name": "Broker Host, QUIC support need",
+    "name_zh": "服务器地址, 需支持QUIC特性",
+    "description": "MQTT broker host with QUIC support",
+    "description_zh": "开启 QUIC 支持的MQTT服务器地址",
     "attribute": "required",
     "type": "string",
-    "default": "mqtt-quic://39.107.250.212:14567",
+    "default": "39.107.250.212",
     "valid": {
       "length": 255
+    }
+  },
+  "port": {
+    "name": "Broker Port",
+    "name_zh": "服务器端口",
+    "description": "MQTT broker port",
+    "description_zh": "MQTT 服务器端口",
+    "attribute": "required",
+    "type": "int",
+    "default": 14567,
+    "valid": {
+      "min": 1024,
+      "max": 65535
     }
   },
   "qos": {
@@ -17,7 +30,7 @@
     "description": "MQTT QoS level for message delivery",
     "description_zh": "MQTT 消息传输使用的服务质量等级",
     "type": "map",
-    "attribute": "optional",
+    "attribute": "required",
     "default": 0,
     "valid": {
       "map": [
@@ -37,25 +50,25 @@
     }
   },
   "username": {
-    "name": "Username",
-    "name_zh": "用户名",
-    "description": "MQTT user name",
+    "name": "MQTT UserName",
+    "name_zh": "MQTT 用户名",
+    "description": "MQTT UserName",
     "description_zh": "MQTT 用户名",
-    "attribute": "optional",
+    "attribute": "required",
     "type": "string",
-    "default": "",
+    "default": "wumei-smart",
     "valid": {
       "length": 255
     }
   },
   "password": {
-    "name": "Password",
-    "name_zh": "密码",
-    "description": "MQTT user password",
+    "name": "MQTT Password",
+    "name_zh": "MQTT 密码",
+    "description": "MQTT Password",
     "description_zh": "MQTT 用户密码",
-    "attribute": "optional",
+    "attribute": "required",
     "type": "string",
-    "default": "",
+    "default": "PD85T076F7EX8GS3",
     "valid": {
       "length": 255
     }
@@ -67,7 +80,7 @@
     "description_zh": "设备ID",
     "attribute": "required",
     "type": "string",
-    "default": "",
+    "default": "D1EP5AT2XE8L",
     "valid": {
       "length": 255
     }
@@ -79,7 +92,7 @@
     "description_zh": "用户ID",
     "attribute": "required",
     "type": "string",
-    "default": "",
+    "default": "1",
     "valid": {
       "length": 255
     }
@@ -91,7 +104,7 @@
     "description_zh": "产品ID",
     "attribute": "required",
     "type": "string",
-    "default": "",
+    "default": "43",
     "valid": {
       "length": 255
     }
@@ -103,7 +116,7 @@
     "description_zh": "固件版本",
     "attribute": "required",
     "type": "string",
-    "default": "",
+    "default": "1",
     "valid": {
       "length": 255
     }
