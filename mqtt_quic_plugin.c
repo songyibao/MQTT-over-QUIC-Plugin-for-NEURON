@@ -10,8 +10,8 @@
 #include "quic_conn_status_detect/detector.h"
 #include <pthread.h>
 #include <stdlib.h>
-#define DESCRIPTION "Northbound MQTT over QUIC plugin bases on NanoSDK."
-#define DESCRIPTION_ZH "基于 NanoSDK 的北向应用 MQTT over QUIC 插件"
+#define DESCRIPTION "MQTT plugin based on QUIC protocol"
+#define DESCRIPTION_ZH "基于 QUIC 协议的 MQTT 插件"
 static const neu_plugin_intf_funs_t plugin_intf_funs = {
     .open    = driver_open,
     .close   = driver_close,
