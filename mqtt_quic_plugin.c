@@ -136,6 +136,9 @@ static int driver_uninit(neu_plugin_t *plugin)
     if (plugin->client != NULL) {
         stop_and_free_client(plugin);
     }
+    if (plugin->keep_alive_conn_count == 1) {
+        close_keep_alive_conn(plugin);
+    }
     free(plugin);
     nlog_debug("uninit success");
     return NEU_ERR_SUCCESS;
