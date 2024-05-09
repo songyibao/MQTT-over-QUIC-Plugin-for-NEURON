@@ -9,8 +9,8 @@
 
 cmake_minimum_required(VERSION 3.13)
 set(LIBRARY_OUTPUT_PATH "./")
-file(COPY /home/songyibao/Downloads/neuron-main/plugins/mqtt_over_quic/mqtt-quic.json DESTINATION
-        /home/songyibao/Downloads/neuron-main/build/plugins/schema)
+file(COPY /software/neuron/plugins/mqtt_over_quic/mqtt-quic.json DESTINATION
+        /software/neuron/build/plugins/schema)
 project(quic_clientv5)
 
 # Call this from your own project's makefile.
@@ -39,9 +39,9 @@ endif ()
 
 target_include_directories(plugin-mqtt-quic PRIVATE
         #        ${CMAKE_SOURCE_DIR}/include/neuron
-        /home/songyibao/Downloads/neuron-main/include/neuron
+        /software/neuron/include/neuron
         #        ${CMAKE_CURRENT_SOURCE_DIR}/deps/tquic/include
-        /home/songyibao/Downloads/neuron-main/plugins/quic/deps/tquic/include
+        /software/neuron/plugins/quic/deps/tquic/include
         /own/lib/include
 )
 target_link_directories(plugin-mqtt-quic PRIVATE /own/lib/lib)
