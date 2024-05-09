@@ -44,10 +44,10 @@ BOOLEAN ClientLoadConfiguration(BOOLEAN Unsecure)
     //
     // Configures the client's idle timeout.
     //
-    Settings.IdleTimeoutMs       = 30;
-    Settings.IsSet.IdleTimeoutMs = TRUE;
-    //    Settings.KeepAliveIntervalMs       = 1000;
-    //    Settings.IsSet.KeepAliveIntervalMs = TRUE;
+    Settings.IdleTimeoutMs             = 2000;
+    Settings.IsSet.IdleTimeoutMs       = TRUE;
+    Settings.KeepAliveIntervalMs       = 1000;
+    Settings.IsSet.KeepAliveIntervalMs = TRUE;
 
     //
     // Configures a default client configuration, optionally disabling
@@ -183,11 +183,10 @@ _IRQL_requires_max_(DISPATCH_LEVEL) _Function_class_(QUIC_CONNECTION_CALLBACK) Q
 int check_connect_status_callback(void *arg)
 {
     neu_plugin_t *plugin = (neu_plugin_t *) arg;
-    if (plugin)
-        if (plugin->connected == true) {
-            plog_debug(plugin, "插件已经连接，不再重复发起探活连接");
-            return 0;
-        }
+    //    if (plugin->connected == true) {
+    //        plog_debug(plugin, "插件已经连接，不再重复发起探活连接");
+    //        return 0;
+    //    }
     if (plugin->keep_alive_conn_count == 1) {
         plog_debug(plugin, "已经创建连接，不再重复发起探活连接");
         return 0;
