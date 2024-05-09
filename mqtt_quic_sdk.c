@@ -282,8 +282,7 @@ static int msg_recv_cb(void *rmsg, void *arg)
     char *payload = (char *) nng_mqtt_msg_get_publish_payload(msg, &payloadsz);
 
     plog_debug(plugin,
-               "topic   => %.*s\n"
-               "payload => %.*s\n",
+               "topic   => %.*s , payload => %.*s",
                topicsz, topic, payloadsz, payload);
 
     property *pl = nng_mqtt_msg_get_publish_property(msg);
