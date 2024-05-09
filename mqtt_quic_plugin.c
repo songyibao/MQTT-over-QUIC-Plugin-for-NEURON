@@ -105,6 +105,10 @@ static int driver_start(neu_plugin_t *plugin)
 
     plugin->timer   = 0;
     plugin->started = true;
+    if (plugin->connected == true && plugin->client != NULL) {
+        // 上线设备 status 3
+        publishInfo(plugin, 3);
+    }
     return 0;
 }
 
@@ -116,6 +120,10 @@ static int driver_stop(neu_plugin_t *plugin)
                 "plugin============================================================\n");
     plugin->timer   = 0;
     plugin->started = false;
+    if (plugin->connected == true && plugin->client != NULL) {
+        // 下线设备 status 4
+        publishInfo(plugin, 4);
+    }
     return 0;
 }
 
