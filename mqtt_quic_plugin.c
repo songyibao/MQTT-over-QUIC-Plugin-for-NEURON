@@ -150,7 +150,7 @@ static int driver_request(neu_plugin_t *plugin, neu_reqresp_head_t *head, void *
                 "============================================================request "
                 "plugin============================================================\n");
     if (plugin->connected == false) {
-        plog_error(plugin, "插件未连接，无法启动client发送数据");
+        plog_error(plugin, "MQTT 服务器未连接，无法启动 client 发送数据");
         return NEU_ERR_PLUGIN_DISCONNECTED;
     }
     // 本插件未启动，不处理请求
@@ -165,8 +165,7 @@ static int driver_request(neu_plugin_t *plugin, neu_reqresp_head_t *head, void *
         stop_and_free_client(plugin);
         int res = create_and_config_and_start_client(plugin);
         if (res != 0) {
-            plog_error(plugin, "连接失败");
-            // 保证创建失败的话,plugin->client为NULL
+            // 创建失败, 销毁 plugin->client, 并置为 NULL
             stop_and_free_client(plugin);
             return NEU_ERR_PLUGIN_DISCONNECTED;
         }
@@ -177,13 +176,13 @@ static int driver_request(neu_plugin_t *plugin, neu_reqresp_head_t *head, void *
     switch (head->type) {
     case NEU_REQRESP_TRANS_DATA: {
         if (plugin->monitor_count > 0) {
-            plog_debug(plugin, "发布监测数据");
+            plog_debug(plugin, "发布实时监测数据");
             plugin->monitor_count--;
             handle_trans_data(plugin, data, pMonitorTopic);
         } else {
             if (plugin->timer >= plugin->interval) {
                 plugin->timer = 0;
-                plog_debug(plugin, "上报数据");
+                plog_debug(plugin, "发布定期上报数据");
                 handle_trans_data(plugin, data, pPropertyTopic);
             }
         }

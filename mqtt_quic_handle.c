@@ -58,7 +58,6 @@ char* transform(const char* inputJson) {
 }
 int handle_trans_data(neu_plugin_t *plugin,void *data,int ptopic_index)
 {
-    plog_notice(plugin, "start to parse data and insert data to database");
     int              ret      = 0;
     char            *json_str = NULL;
     json_read_resp_t resp     = {

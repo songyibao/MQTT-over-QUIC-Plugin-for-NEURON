@@ -20,16 +20,14 @@
 #ifndef NEURON_PLUGIN_MQTT_QUIC_CONFIG_H
 #define NEURON_PLUGIN_MQTT_QUIC_CONFIG_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+
 
 #include <stdint.h>
 #include <stdlib.h>
-
 #include "connection/mqtt_client.h"
 #include "mqtt_quic_plugin.h"
 #include "plugin.h"
+
 int config_topic_info(neu_plugin_t *plugin);
 char *concatenate(const char *prefix, const char *suffix);
 int quic_mqtt_config_parse(neu_plugin_t *plugin, const char *setting);
@@ -38,8 +36,6 @@ void free_mqtt_quic_client(neu_plugin_t *plugin);
 int create_and_config_and_start_client(neu_plugin_t *plugin);
 int stop_and_free_client(neu_plugin_t *plugin);
 void add_connection_status_checker(neu_plugin_t *plugin);
-#ifdef __cplusplus
-}
-#endif
+
 
 #endif
