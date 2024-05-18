@@ -39,7 +39,7 @@ char* transform(const char* inputJson) {
         // 为当前键值对创建一个新的JSON对象
         cJSON *item = cJSON_CreateObject();
         cJSON_AddStringToObject(item, "id", current_value->string);
-        cJSON_AddNumberToObject(item, "value", current_value->valuedouble);
+        cJSON_AddNumberToObject(item, "value", (int)(current_value->valuedouble*100)/100.0);
         cJSON_AddNumberToObject(item, "remark", timestamp+i);
         // 将新创建的对象添加到输出数组中
         cJSON_AddItemToArray(outputArray, item);
