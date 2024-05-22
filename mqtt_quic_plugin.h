@@ -58,10 +58,11 @@ struct neu_plugin {
     // 插件连接状态
     bool connected;
     // 插件内简单的加法计时器, 创建 client 后才开始记时
-    uint16_t timer;
+    uint16_t base_timer_count;
     // 是否已开启保活连接
     uint8_t keep_alive_conn_count;
     // neuron 内部实现的定时器
+    neu_event_timer_t *base_timer;
     neu_event_timer_t *neu_timer;
     neu_events_t      *events;
     // 实时监测请求的监测次数，默认为 0，表示无实时监测请求

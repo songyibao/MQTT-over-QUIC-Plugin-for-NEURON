@@ -252,7 +252,7 @@ int stop_mqtt_quic_client(neu_plugin_t *plugin)
 {
     int res               = 0;
     plugin->monitor_count = 0;
-    plugin->timer         = 0;
+    plugin->base_timer_count         = 0;
     // 发送设备离线信息
     if (plugin->common.link_state == NEU_NODE_LINK_STATE_CONNECTED) {
         publishInfo(plugin, 4);
@@ -358,6 +358,16 @@ int stop_and_free_client(neu_plugin_t *plugin)
     free_mqtt_quic_client(plugin);
     plugin->common.link_state = NEU_NODE_LINK_STATE_DISCONNECTED;
     return res;
+}
+void add_base_timer(neu_plugin_t *plugin)
+{
+    neu_event_timer_param_t param = { .second      = 1,
+                                      .millisecond = 0,
+                                      .cb          = base_timer_callback,
+                                      .usr_data    = (void *) plugin,
+                                      .type        = NEU_EVENT_TIMER_NOBLOCK };
+
+    plugin->base_timer = neu_event_add_timer(plugin->events, param);
 }
 void add_connection_status_checker(neu_plugin_t *plugin)
 {

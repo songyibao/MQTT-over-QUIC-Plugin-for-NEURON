@@ -180,6 +180,11 @@ _IRQL_requires_max_(DISPATCH_LEVEL) _Function_class_(QUIC_CONNECTION_CALLBACK) Q
     }
     return QUIC_STATUS_SUCCESS;
 }
+int base_timer_callback(void *arg){
+    neu_plugin_t *plugin = (neu_plugin_t *) arg;
+    plugin->base_timer_count++;
+    return 0;
+}
 int check_connect_status_callback(void *arg)
 {
     neu_plugin_t *plugin = (neu_plugin_t *) arg;
