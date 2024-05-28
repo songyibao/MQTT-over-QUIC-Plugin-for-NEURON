@@ -6,7 +6,7 @@
     "description_zh": "开启 QUIC 支持的MQTT服务器地址",
     "attribute": "required",
     "type": "string",
-    "default": "192.168.5.3",
+    "default": "47.94.217.202",
     "valid": {
       "length": 255
     }
@@ -80,7 +80,7 @@
     "description_zh": "设备ID",
     "attribute": "required",
     "type": "string",
-    "default": "D11R31DDE83M",
+    "default": "D131491EODP3",
     "valid": {
       "length": 255
     }
