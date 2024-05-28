@@ -80,9 +80,9 @@ void print_property(property *prop)
                (const char *) prop->data.p_value.str.buf);
         break;
     case STR_PAIR:
-        printf("id: %d, value: '%.*s -> %.*s' (STR_PAIR)\n", prop_id, prop->data.p_value.strpair.key.length,
-               prop->data.p_value.strpair.key.buf, prop->data.p_value.strpair.value.length,
-               prop->data.p_value.strpair.value.buf);
+        printf("id: %d, value: '%.*s -> %.*s' (STR_PAIR)\n", prop_id,
+               prop->data.p_value.strpair.key.length, prop->data.p_value.strpair.key.buf,
+               prop->data.p_value.strpair.value.length, prop->data.p_value.strpair.value.buf);
         break;
 
     default:
@@ -215,10 +215,11 @@ static nng_msg *compose_publish(int qos, char *topic, char *payload)
     mqtt_property_append(plist, p3);
     property *p4 = mqtt_property_set_value_str(RESPONSE_TOPIC, "aaaaaa", strlen("aaaaaa"), true);
     mqtt_property_append(plist, p4);
-    property *p5 = mqtt_property_set_value_binary(CORRELATION_DATA, (uint8_t *) "aaaaaa", strlen("aaaaaa"), true);
+    property *p5 = mqtt_property_set_value_binary(CORRELATION_DATA, (uint8_t *) "aaaaaa",
+                                                  strlen("aaaaaa"), true);
     mqtt_property_append(plist, p5);
-    property *p6 =
-        mqtt_property_set_value_strpair(USER_PROPERTY, "aaaaaa", strlen("aaaaaa"), "aaaaaa", strlen("aaaaaa"), true);
+    property *p6 = mqtt_property_set_value_strpair(USER_PROPERTY, "aaaaaa", strlen("aaaaaa"),
+                                                   "aaaaaa", strlen("aaaaaa"), true);
     mqtt_property_append(plist, p6);
     property *p7 = mqtt_property_set_value_str(CONTENT_TYPE, "aaaaaa", strlen("aaaaaa"), true);
     mqtt_property_append(plist, p7);
@@ -281,9 +282,7 @@ static int msg_recv_cb(void *rmsg, void *arg)
     char *topic   = (char *) nng_mqtt_msg_get_publish_topic(msg, &topicsz);
     char *payload = (char *) nng_mqtt_msg_get_publish_payload(msg, &payloadsz);
 
-    plog_debug(plugin,
-               "topic   => %.*s , payload => %.*s",
-               topicsz, topic, payloadsz, payload);
+    plog_debug(plugin, "topic   => %.*s , payload => %.*s", topicsz, topic, payloadsz, payload);
 
     property *pl = nng_mqtt_msg_get_publish_property(msg);
     if (pl != NULL) {
@@ -293,6 +292,7 @@ static int msg_recv_cb(void *rmsg, void *arg)
     plog_debug(plugin, "topic:%s", topic);
     plog_debug(plugin, "s_topics:%s", s_topics[sMonitorTopic]);
     if (strncmp(topic, s_topics[sMonitorTopic], topicsz) == 0) {
+        plog_info(plugin, "收到实时监测监测指令");
         cJSON *res            = cJSON_Parse(payload);
         plugin->monitor_count = cJSON_GetObjectItemCaseSensitive(res, "count")->valueint;
         cJSON_free(res);
@@ -345,7 +345,8 @@ int sendmsg_func(nng_socket sock, nng_msg *msg, int flag, void *arg)
     //            nlog_debug("发送消息成功，第 %d 轮循环", i);
     //            return 0;
     //        } else if (res == NNG_EAGAIN) {
-    //            // 例如，如果由于对等方消耗消息太慢而存在背压，或者不存在对等方，那么可能会返回NNG_EAGAIN
+    //            //
+    //            例如，如果由于对等方消耗消息太慢而存在背压，或者不存在对等方，那么可能会返回NNG_EAGAIN
     //            // 如果没有NNG_FLAG_NONBLOCK标志，则nng_sendmsg将一直阻塞
     //            nlog_debug("发送消息失败，等待 1 秒后重试");
     //        }
@@ -512,7 +513,8 @@ int client_subscribe(neu_plugin_t *plugin)
         return 1;
     }
     topic_info_t *topic_info = client->topic_info;
-    nng_msg      *msg = compose_subscribe_multiple(topic_info->qos, topic_info->s_topics, topic_info->s_topic_count);
+    nng_msg      *msg        = compose_subscribe_multiple(topic_info->qos, topic_info->s_topics,
+                                                          topic_info->s_topic_count);
 
     sendmsg_func(client->sock, msg, NNG_FLAG_ALLOC, plugin);
 

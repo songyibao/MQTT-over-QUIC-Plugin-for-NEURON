@@ -61,16 +61,16 @@ static int driver_close(neu_plugin_t *plugin)
 static int driver_init(neu_plugin_t *plugin, bool load)
 {
     (void) load;
-    plog_notice(
-        plugin,
-        "============================================================"
-        "\ninitialize "
-        "plugin============================================================\n");
+    plog_notice(plugin,
+                "============================================================"
+                "\ninitialize "
+                "plugin============================================================\n");
     plugin->client                = NULL;
     plugin->connected             = false;
     plugin->base_timer_count      = 0;
     plugin->keep_alive_conn_count = 0;
     plugin->base_timer_count      = 0;
+    plugin->keep_alive_conn_count = 0;
     // 这两个函数先后顺序不能变
     plugin->events = neu_event_new();
     add_connection_status_checker(plugin);
@@ -80,10 +80,9 @@ static int driver_init(neu_plugin_t *plugin, bool load)
 
 static int driver_config(neu_plugin_t *plugin, const char *setting)
 {
-    plog_notice(
-        plugin,
-        "============================================================\nconfig "
-        "plugin============================================================\n");
+    plog_notice(plugin,
+                "============================================================\nconfig "
+                "plugin============================================================\n");
     int res = 0;
     // 解析插件配置（包含设备信息）
     res = quic_mqtt_config_parse(plugin, setting);
@@ -103,10 +102,9 @@ static int driver_config(neu_plugin_t *plugin, const char *setting)
 
 static int driver_start(neu_plugin_t *plugin)
 {
-    plog_notice(
-        plugin,
-        "============================================================\nstart "
-        "plugin============================================================\n");
+    plog_notice(plugin,
+                "============================================================\nstart "
+                "plugin============================================================\n");
 
     plugin->base_timer_count = 0;
     plugin->started          = true;
@@ -120,10 +118,9 @@ static int driver_start(neu_plugin_t *plugin)
 static int driver_stop(neu_plugin_t *plugin)
 {
 
-    plog_notice(
-        plugin,
-        "============================================================\nstop "
-        "plugin============================================================\n");
+    plog_notice(plugin,
+                "============================================================\nstop "
+                "plugin============================================================\n");
     plugin->base_timer_count = 0;
     plugin->started          = false;
     if (plugin->connected == true && plugin->client != NULL) {
@@ -135,10 +132,9 @@ static int driver_stop(neu_plugin_t *plugin)
 
 static int driver_uninit(neu_plugin_t *plugin)
 {
-    plog_notice(
-        plugin,
-        "============================================================\nuninit "
-        "plugin============================================================\n");
+    plog_notice(plugin,
+                "============================================================\nuninit "
+                "plugin============================================================\n");
 
     if (plugin->client != NULL) {
         stop_and_free_client(plugin);
@@ -147,18 +143,15 @@ static int driver_uninit(neu_plugin_t *plugin)
         close_keep_alive_conn(plugin);
     }
     neu_event_close(plugin->events);
-    free(plugin);
     nlog_debug("uninit success");
     return NEU_ERR_SUCCESS;
 }
 
-static int driver_request(neu_plugin_t *plugin, neu_reqresp_head_t *head,
-                          void *data)
+static int driver_request(neu_plugin_t *plugin, neu_reqresp_head_t *head, void *data)
 {
-    plog_notice(
-        plugin,
-        "============================================================request "
-        "plugin============================================================\n");
+    plog_notice(plugin,
+                "============================================================request "
+                "plugin============================================================\n");
     if (plugin->connected == false) {
         plog_error(plugin, "MQTT 服务器未连接，无法启动 client 发送数据");
         return NEU_ERR_PLUGIN_DISCONNECTED;
@@ -185,7 +178,7 @@ static int driver_request(neu_plugin_t *plugin, neu_reqresp_head_t *head,
     switch (head->type) {
     case NEU_REQRESP_TRANS_DATA: {
         if (plugin->monitor_count > 0) {
-            plog_debug(plugin, "发布实时监测数据");
+            plog_info(plugin, "发布实时监测数据,monitor_count:%d", plugin->monitor_count);
             plugin->monitor_count--;
             handle_trans_data(plugin, data, pMonitorTopic);
         } else {
@@ -221,8 +214,7 @@ static int driver_group_timer(neu_plugin_t *plugin, neu_plugin_group_t *group)
     return 0;
 }
 
-static int driver_write(neu_plugin_t *plugin, void *req, neu_datatag_t *tag,
-                        neu_value_u value)
+static int driver_write(neu_plugin_t *plugin, void *req, neu_datatag_t *tag, neu_value_u value)
 {
     (void) plugin;
     (void) req;
