@@ -122,16 +122,16 @@
     }
   },
   "interval": {
-    "name": "Sending interval",
-    "name_zh": "数据上报时间间隔",
+    "name": "Sending interval(ms)",
+    "name_zh": "数据上报时间间隔(毫秒)",
     "description": "The time interval for sending data",
-    "description_zh": "发送数据的时间间隔",
+    "description_zh": "发送数据的时间间隔(毫秒)",
     "attribute": "required",
     "type": "int",
-    "default": 5,
+    "default": 3000,
     "valid": {
-      "min": 1,
-      "max": 65535
+      "min": 500,
+      "max": 10000
     }
   }
 }

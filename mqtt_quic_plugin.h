@@ -67,9 +67,13 @@ struct neu_plugin {
     neu_events_t      *events;
     // 实时监测请求的监测次数，默认为 0，表示无实时监测请求
     uint16_t monitor_count;
-    // 数据上报间隔
+    // 两种状态下的数据上报间隔，可能等于 monitor_interval 或 config_interval
     uint16_t interval;
+    uint16_t monitor_interval;
+    uint16_t config_interval;
     bool     started;
+    char *node_name;
+    char *group_name;
 };
 static neu_plugin_t *driver_open(void);
 

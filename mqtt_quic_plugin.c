@@ -10,6 +10,8 @@
 #include "quic_conn_status_detect/detector.h"
 #include <pthread.h>
 #include <stdlib.h>
+#include <curl/curl.h>
+#include "internal_api/update_interval.h"
 #define DESCRIPTION "MQTT plugin based on QUIC protocol"
 #define DESCRIPTION_ZH "基于 QUIC 协议的 MQTT 插件"
 static const neu_plugin_intf_funs_t plugin_intf_funs = {
@@ -71,10 +73,13 @@ static int driver_init(neu_plugin_t *plugin, bool load)
     plugin->keep_alive_conn_count = 0;
     plugin->base_timer_count      = 0;
     plugin->keep_alive_conn_count = 0;
-    // 这两个函数先后顺序不能变
+    plugin->node_name = NULL;
+    plugin->group_name = NULL;
+    // 先初始化events, 再添加定时器, 先后顺序不能变
     plugin->events = neu_event_new();
     add_connection_status_checker(plugin);
-    add_base_timer(plugin);
+    // 暂时停用单独的上报间隔控制，而是根据订阅的南向设备点位组的间隔来采集
+//    add_base_timer(plugin);
     return 0;
 }
 
@@ -108,6 +113,8 @@ static int driver_start(neu_plugin_t *plugin)
 
     plugin->base_timer_count = 0;
     plugin->started          = true;
+    // 当前采集间隔，初始化为0代表两种状态都不是
+    plugin->interval = 0;
     if (plugin->connected == true && plugin->client != NULL) {
         // 上线设备 status 3
         publishInfo(plugin, 3);
@@ -143,6 +150,7 @@ static int driver_uninit(neu_plugin_t *plugin)
         close_keep_alive_conn(plugin);
     }
     neu_event_close(plugin->events);
+    config_uint(plugin);
     nlog_debug("uninit success");
     return NEU_ERR_SUCCESS;
 }
@@ -152,6 +160,7 @@ static int driver_request(neu_plugin_t *plugin, neu_reqresp_head_t *head, void *
     plog_notice(plugin,
                 "============================================================request "
                 "plugin============================================================\n");
+    neu_reqresp_trans_data_t *trans_data = (neu_reqresp_trans_data_t *)data;
     if (plugin->connected == false) {
         plog_error(plugin, "MQTT 服务器未连接，无法启动 client 发送数据");
         return NEU_ERR_PLUGIN_DISCONNECTED;
@@ -176,20 +185,53 @@ static int driver_request(neu_plugin_t *plugin, neu_reqresp_head_t *head, void *
     // 连接已就绪，插件已启动，client 已创建, 进入数据处理流程
     neu_err_code_e error = NEU_ERR_SUCCESS;
     switch (head->type) {
-    case NEU_REQRESP_TRANS_DATA: {
-        if (plugin->monitor_count > 0) {
-            plog_info(plugin, "发布实时监测数据,monitor_count:%d", plugin->monitor_count);
-            plugin->monitor_count--;
-            handle_trans_data(plugin, data, pMonitorTopic);
-        } else {
-            if (plugin->base_timer_count >= plugin->interval) {
-                plugin->base_timer_count = 0;
-                plog_debug(plugin, "发布定期上报数据");
+        case NEU_REQ_SUBSCRIBE_GROUP:
+            neu_req_subscribe_t *req_data = (neu_req_subscribe_t *)data;
+            // log the request
+            plog_notice(plugin, "app [%s] subscribe [%s]'s group: [%s]", req_data->app,
+                        req_data->driver, req_data->group);
+            strcpy(plugin->node_name, req_data->driver);
+            strcpy(plugin->group_name, req_data->group);
+            update_interval(trans_data->driver,trans_data->group,plugin->config_interval,plugin);
+        case NEU_REQRESP_TRANS_DATA: {
+
+            plog_debug(plugin,"driver name:%s,group_name:%s",trans_data->driver,trans_data->group);
+            if (plugin->monitor_count > 0) {
+                plog_debug(plugin,"plugin->monitor_inerval:%d",plugin->monitor_interval);
+                if(plugin->interval!=plugin->monitor_interval){
+                    plog_debug(plugin,"实时监测，更新采集间隔");
+                    CURLcode res = update_interval(trans_data->driver,trans_data->group,plugin->monitor_interval,plugin);
+                    if(res==CURLE_OK){
+                        plog_debug(plugin,"更新实时监测间隔成功,plugin->monitor_interval:%d",plugin->monitor_interval);
+                        plugin->interval=plugin->monitor_interval;
+                        plugin->monitor_count++;
+                    }
+                }
+                plog_info(plugin, "发布实时监测数据,monitor_count:%d", plugin->monitor_count);
+                plugin->monitor_count--;
+                handle_trans_data(plugin, data, pMonitorTopic);
+            } else {
+                if(plugin->interval!=plugin->config_interval){
+
+                    CURLcode res = update_interval(trans_data->driver,trans_data->group,plugin->config_interval,plugin);
+                    if(res==CURLE_OK){
+                        plugin->interval=plugin->config_interval;
+                        plog_debug(plugin,"定期上报，更新采集间隔成功 %d",plugin->interval);
+                    }else{
+                        plog_debug(plugin,"定期上报，更新采集间隔失败 %d",plugin->interval);
+                    }
+                }
+                // 暂时停用单独的上报间隔控制，而是根据订阅的南向设备点位组的间隔来采集
+    //            if (plugin->base_timer_count >= plugin->interval) {
+    //                plugin->base_timer_count = 0;
+    //                plog_info(plugin, "发布定期上报数据");
+    //                handle_trans_data(plugin, data, pPropertyTopic);
+    //            }
+                plog_info(plugin, "发布定期上报数据");
                 handle_trans_data(plugin, data, pPropertyTopic);
             }
+            break;
         }
-        break;
-    }
     default:
         break;
     }

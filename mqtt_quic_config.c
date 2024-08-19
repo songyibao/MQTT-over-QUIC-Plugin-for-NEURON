@@ -106,19 +106,26 @@ int quic_mqtt_config_parse(neu_plugin_t *plugin, const char *setting)
     plugin->user_id          = userid.v.val_str;
     plugin->product_id       = productid.v.val_str;
     plugin->firmware_version = firmwareversion.v.val_str;
-    plugin->interval         = interval.v.val_int;
+    plugin->config_interval  = interval.v.val_int;
     plog_notice(plugin, "config url            : %s", plugin->url);
     plog_notice(plugin, "config qos            : %d", plugin->qos);
     plog_notice(plugin, "config deviceid       : %s", plugin->device_id);
     plog_notice(plugin, "config userid         : %s", plugin->user_id);
     plog_notice(plugin, "config productid      : %s", plugin->product_id);
     plog_notice(plugin, "config firmwareversion: %s", plugin->firmware_version);
-    plog_notice(plugin, "config interval       : %d", plugin->interval);
+    plog_notice(plugin, "config interval       : %d", plugin->config_interval);
 
     return 0;
 
 error:
     return -1;
+}
+int config_uint(neu_plugin_t *plugin){
+    free(plugin->device_id);
+    free(plugin->user_id);
+    free(plugin->product_id);
+    free(plugin->firmware_version);
+    free(plugin->url);
 }
 int config_topic_info(neu_plugin_t *plugin)
 {

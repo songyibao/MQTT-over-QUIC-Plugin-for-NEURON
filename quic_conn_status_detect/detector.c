@@ -4,6 +4,7 @@
 #include "detector.h"
 
 #include <msquic.h>
+#include "../internal_api/update_interval.h"
 typedef struct det_arg {
     neu_plugin_t *plugin;
     bool          connected;
@@ -182,7 +183,19 @@ _IRQL_requires_max_(DISPATCH_LEVEL) _Function_class_(QUIC_CONNECTION_CALLBACK) Q
 }
 int base_timer_callback(void *arg){
     neu_plugin_t *plugin = (neu_plugin_t *) arg;
-    plugin->base_timer_count++;
+    plugin->base_timer_count+=1000;
+    return 0;
+}
+int interval_callback(void *arg){
+    neu_plugin_t *plugin = (neu_plugin_t *) arg;
+    if(plugin->node_name==NULL || plugin->group_name==NULL){
+        return -1;
+    }
+    if(plugin->monitor_count>0){
+        update_interval(plugin->node_name,plugin->group_name,plugin->monitor_interval,plugin);
+    }else{
+        update_interval(plugin->node_name,plugin->group_name,plugin->config_interval,plugin);
+    }
     return 0;
 }
 int check_connect_status_callback(void *arg)

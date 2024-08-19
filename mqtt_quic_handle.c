@@ -69,14 +69,14 @@ int handle_trans_data(neu_plugin_t *plugin,void *data,int ptopic_index)
         plog_notice(plugin, "parse json failed");
         return -1;
     }
-    plog_debug(plugin, "parse json str succeed: %s", json_str);
+//    plog_debug(plugin, "parse json str succeed: %s", json_str);
     char *res = transform(json_str);
     if(res==NULL){
         free(json_str);
         return -1;
     }
     free(json_str);
-    plog_debug(plugin, "transform json str succeed: %s", res);
+//    plog_debug(plugin, "transform json str succeed: %s", res);
     switch (ptopic_index) {
         case pPropertyTopic:
             publishProperty(plugin,res);

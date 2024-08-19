@@ -37,5 +37,5 @@ int create_and_config_and_start_client(neu_plugin_t *plugin);
 int stop_and_free_client(neu_plugin_t *plugin);
 void add_connection_status_checker(neu_plugin_t *plugin);
 void add_base_timer(neu_plugin_t *plugin);
-
+int config_uint(neu_plugin_t *plugin);
 #endif

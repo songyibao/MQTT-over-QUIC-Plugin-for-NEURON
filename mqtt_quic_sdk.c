@@ -49,6 +49,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+
 void print_property(property *prop)
 {
     if (prop == NULL) {
@@ -295,6 +296,17 @@ static int msg_recv_cb(void *rmsg, void *arg)
         plog_info(plugin, "收到实时监测监测指令");
         cJSON *res            = cJSON_Parse(payload);
         plugin->monitor_count = cJSON_GetObjectItemCaseSensitive(res, "count")->valueint;
+        if(plugin->monitor_count<1){
+            plugin->monitor_count=1;
+        }else if(plugin->monitor_count>300){
+            plugin->monitor_count=300;
+        }
+        plugin->monitor_interval = (uint16_t)cJSON_GetObjectItemCaseSensitive(res, "interval")->valueint;
+        if(plugin->monitor_interval<500){
+            plugin->monitor_interval=500;
+        }else if(plugin->monitor_interval>10000){
+            plugin->monitor_interval=10000;
+        }
         cJSON_free(res);
     }
     return 0;
