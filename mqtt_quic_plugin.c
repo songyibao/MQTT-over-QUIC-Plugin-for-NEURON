@@ -157,10 +157,12 @@ static int driver_uninit(neu_plugin_t *plugin)
 
 static int driver_request(neu_plugin_t *plugin, neu_reqresp_head_t *head, void *data)
 {
-    plog_notice(plugin,
-                "============================================================request "
-                "plugin============================================================\n");
-    neu_reqresp_trans_data_t *trans_data = (neu_reqresp_trans_data_t *)data;
+    printf("测试DEBUG");
+    fflush(stdout);
+//    plog_notice(plugin,
+//                "============================================================request "
+//                "plugin============================================================\n");
+
     if (plugin->connected == false) {
         plog_error(plugin, "MQTT 服务器未连接，无法启动 client 发送数据");
         return NEU_ERR_PLUGIN_DISCONNECTED;
@@ -169,9 +171,10 @@ static int driver_request(neu_plugin_t *plugin, neu_reqresp_head_t *head, void *
     if (plugin->started == false) {
         return NEU_ERR_PLUGIN_NOT_RUNNING;
     }
+
     // client的建立逻辑属于已知连接可用时的数据传输逻辑，所以放在判断插件是否启动的逻辑之后（未启动不需要传输数据），而连接可用状态监测有单独的线程监测
     // 打印plugin->client地址
-    plog_debug(plugin, "plugin->client:0x%p", plugin->client);
+//    plog_debug(plugin, "plugin->client:0x%p", plugin->client);
     // 如果client为空，重新创建client
     if (plugin->client == NULL) {
         stop_and_free_client(plugin);
@@ -182,19 +185,28 @@ static int driver_request(neu_plugin_t *plugin, neu_reqresp_head_t *head, void *
             return NEU_ERR_PLUGIN_DISCONNECTED;
         }
     }
+
     // 连接已就绪，插件已启动，client 已创建, 进入数据处理流程
     neu_err_code_e error = NEU_ERR_SUCCESS;
     switch (head->type) {
-        case NEU_REQ_SUBSCRIBE_GROUP:
+        case NEU_REQ_SUBSCRIBE_GROUP:{
             neu_req_subscribe_t *req_data = (neu_req_subscribe_t *)data;
             // log the request
             plog_notice(plugin, "app [%s] subscribe [%s]'s group: [%s]", req_data->app,
                         req_data->driver, req_data->group);
+            if(plugin->node_name==NULL){
+                plugin->node_name = (char *)malloc(strlen(req_data->driver)+1);
+            }
+            if(plugin->group_name == NULL){
+                plugin->group_name = (char *)malloc(strlen(req_data->group)+1);
+            }
             strcpy(plugin->node_name, req_data->driver);
             strcpy(plugin->group_name, req_data->group);
-            update_interval(trans_data->driver,trans_data->group,plugin->config_interval,plugin);
+            update_interval(req_data->driver,req_data->group,plugin->config_interval,plugin);
+            break;
+        }
         case NEU_REQRESP_TRANS_DATA: {
-
+            neu_reqresp_trans_data_t *trans_data = (neu_reqresp_trans_data_t *)data;
             plog_debug(plugin,"driver name:%s,group_name:%s",trans_data->driver,trans_data->group);
             if (plugin->monitor_count > 0) {
                 plog_debug(plugin,"plugin->monitor_inerval:%d",plugin->monitor_interval);

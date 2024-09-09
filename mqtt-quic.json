@@ -80,7 +80,7 @@
     "description_zh": "设备ID",
     "attribute": "required",
     "type": "string",
-    "default": "D1GTA9O9C64U",
+    "default": "D1O9X9481339",
     "valid": {
       "length": 255
     }

@@ -11,7 +11,7 @@
 
 
 char *params_to_string(const char *node, const char *group, int interval) {
-    char *str = (char *) malloc(100);
+    char *str = (char *) malloc(strlen(node)+strlen(group)+2+40);
     sprintf(str, "{\"node\":\"%s\",\"group\":\"%s\",\"interval\":%d}", node,
             group, interval);
     return str;
